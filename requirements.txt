@@ -1,9 +1,0 @@
-torch
-torchvision
-monai[all]
-nibabel
-simpleitk
-matplotlib
-tensorboard
-jupyterlab
-tqdm
