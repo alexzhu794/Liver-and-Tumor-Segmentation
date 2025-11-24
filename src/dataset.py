@@ -29,7 +29,7 @@ def get_loaders1(data_root, stage='liver', batch_size=2, val_ratio=0.2, cache=Tr
 
     # 2. 组装成字典列表 [{'image': path1, 'label': path1}, ...]
     dicts = [
-        {"image:": img_name, "label": lbl_name}
+        {"image": img_name, "label": lbl_name}
         for img_name, lbl_name in zip(images, labels)
     ]
 
@@ -66,7 +66,7 @@ def get_loaders1(data_root, stage='liver', batch_size=2, val_ratio=0.2, cache=Tr
 
 
 
-def get_loaders2(image_dir, label_dir, stage='liver', batch_size=2, cache=True):
+def get_loaders2(data_root, stage='liver', batch_size=2, cache=True):
     '''【原始数据集已划分】'''
     train_images = sorted(glob.glob(os.path.join(data_root, 'LiTS(train_test)', 'train_CT', "volume-*.nii")))
     train_labels = sorted(glob.glob(os.path.join(data_root, 'LiTS(train_test)', 'train_mask', "segmentation-*.nii")))
@@ -97,7 +97,7 @@ def get_loaders2(image_dir, label_dir, stage='liver', batch_size=2, cache=True):
         for img, lbl in zip(val_images, val_labels)
     ]
 
-    print(f"数据准备完成: 训练集 {len(train_files)} 例 | 验证集(来自test文件夹) {len(val_files)} 例")
+    print(f"数据准备完成: 训练集 {len(train_fl)} 例 | 验证集(来自test文件夹) {len(val_fl)} 例")
 
     # 3. 获取 Transforms
     train_transform = get_transforms(stage=stage, mode='train')

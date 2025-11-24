@@ -56,6 +56,8 @@ def get_transforms(stage='liver', mode='train'):
         LoadImaged(keys=["image", "label"]),
         EnsureChannelFirstd(keys=["image", "label"]),    # 增加通道维度
         map_trans,
+        Orientationd(keys=["image", "label"], axcodes="RAS"),      # 统一方向, RAS (Right, Anterior, Superior) 是国际标准方向
+        Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),       # 重采样 (Resampling); 肝脏小肿瘤建议(1.0, 1.0, 2.0)，否则太粗糙
         ScaleIntensityRanged(         # CT值窗口化 (Windowing) + 归一化
             keys=["image"],
             a_min=-175,     # 器官的特征窗口
@@ -65,8 +67,6 @@ def get_transforms(stage='liver', mode='train'):
             clip=True,      # 超出范围的直接截断
         ),
         CropForegroundd(keys=["image", "label"], source_key="image", allow_smaller=True),      # 切掉黑边
-        Orientationd(keys=["image", "label"], axcodes="RAS"),      # 统一方向, RAS (Right, Anterior, Superior) 是国际标准方向
-        Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),       # 重采样 (Resampling); 肝脏小肿瘤建议(1.0, 1.0, 2.0)，否则太粗糙
         RandCropByPosNegLabeld(
             keys=["image", "label"],
             label_key="label",
@@ -94,6 +94,8 @@ def get_transforms(stage='liver', mode='train'):
         LoadImaged(keys=["image", "label"]),
         EnsureChannelFirstd(keys=["image", "label"]),
         map_trans,
+        Orientationd(keys=["image", "label"], axcodes="RAS"),
+        Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),
         ScaleIntensityRanged(
             keys=["image"],
             a_min=-57,
@@ -103,8 +105,6 @@ def get_transforms(stage='liver', mode='train'):
             clip=True,
         ),
         CropForegroundd(keys=["image", "label"], source_key="image", allow_smaller=True),
-        Orientationd(keys=["image", "label"], axcodes="RAS"),
-        Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),
         EnsureTyped(keys=["image", "label"]),
     ]
 )    #验证的时候，需要对整个肝脏进行评估，不能只切一小块看。通常在验证阶段，使用滑动窗口推断（Sliding Window Inference），而不是随机切块。
