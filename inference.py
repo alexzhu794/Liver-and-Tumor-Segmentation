@@ -169,14 +169,13 @@ if __name__ == "__main__":
     # 示例调用：
     # python inference.py 
     
-    # 实际项目中建议用 argparse，这里为了演示直接写死路径
-    # 请确保您已经训练好了两个模型
-    INPUT_DIR = config.data_root + "/LiTS(train_test)/test_CT"    # 假设您有测试数据
-    OUTPUT_DIR = "D:/工程项目/肝脏和肿瘤分割/output/preds"
-    LIVER_MODEL = "./output/models/best_model_liver.pth"
-    TUMOR_MODEL = "./output/models/best_model_tumor.pth"
+    # 建议用 argparse，这里为了方便直接写死路径   
+    input_dir = config.INPUT_DIR
+    output_dir = config.OUTPUT_DIR
+    liver_model_path = config.LIVER_MODEL
+    tumor_model_path = config.TUMOR_MODEL
     
     if os.path.exists(LIVER_MODEL) and os.path.exists(TUMOR_MODEL):
-        run_inference(INPUT_DIR, OUTPUT_DIR, LIVER_MODEL, TUMOR_MODEL)
+        run_inference(input_dir, output_dir, liver_model_path, tumor_model_path)
     else:
         print("请先训练好 liver 和 tumor 两个模型再运行此脚本！")

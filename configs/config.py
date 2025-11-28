@@ -3,7 +3,11 @@ data_root = 'D:/工程项目/肝脏和肿瘤分割/data'
 MODEL_DIR = 'D:/工程项目/肝脏和肿瘤分割/output/models'
 LOG_DIR = 'D:/工程项目/肝脏和肿瘤分割/output/logs'
 
-
+INPUT_DIR = config.data_root + "/LiTS(train_test)/test_CT"  
+OUTPUT_DIR = "./output/preds"
+LIVER_MODEL = "./output/models/best_model_liver.pth"
+TUMOR_MODEL = "./output/models/best_model_tumor.pth"
+    
 
 # 2.训练超参数
 SEED = 42           # 随机种子
