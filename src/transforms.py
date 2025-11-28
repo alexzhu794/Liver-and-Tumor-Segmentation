@@ -110,3 +110,26 @@ def get_transforms(stage='liver', mode='train'):
 )    #验证的时候，需要对整个肝脏进行评估，不能只切一小块看。通常在验证阶段，使用滑动窗口推断（Sliding Window Inference），而不是随机切块。
 
 
+def get_inference_trans(spatial_size=(96, 96, 32), intensity_range=(-175, 250)):
+    """
+    专门用于推理的预处理。
+    注意：没有 Label 相关操作，没有随机增强。
+    """
+    keys = ["image"]
+    return Compose ([
+        LoadImaged(keys=keys),
+        EnsureChannelFirstd(keys=keys),
+        Orientationd(keys=keys, axcodes="RAS"),
+        # 注意：推理时也需要重采样，否则模型看不懂
+        Spacingd(keys=keys, pixdim=(1.0, 1.0, 2.0), mode="bilinear"), 
+        ScaleIntensityRanged(
+            keys=keys, 
+            a_min=intensity_range[0], 
+            a_max=intensity_range[1], 
+            b_min=0.0, 
+            b_max=1.0, 
+            clip=True
+        ),
+        CropForegroundd(keys=keys, source_key="image", allow_smaller=True),
+        EnsureTyped(keys=keys),
+    ])

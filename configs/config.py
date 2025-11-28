@@ -3,6 +3,8 @@ data_root = 'D:/工程项目/肝脏和肿瘤分割/data'
 MODEL_DIR = 'D:/工程项目/肝脏和肿瘤分割/output/models'
 LOG_DIR = 'D:/工程项目/肝脏和肿瘤分割/output/logs'
 
+
+
 # 2.训练超参数
 SEED = 42           # 随机种子
 MAX_EPOCHS = 100    # 训练轮数

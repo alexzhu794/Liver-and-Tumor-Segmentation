@@ -84,7 +84,7 @@ def main():
         # --- Validation ---
         if (epoch + 1) % val_interval == 0:
             model.eval()
-            with torch.no_grad():
+            with torch.no_grad():       
                 for val_data in val_loader:
                     val_inputs, val_labels = (
                         val_data["image"].to(device),
