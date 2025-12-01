@@ -18,6 +18,7 @@ from monai.transforms import (
     Compose,
     Invertd,
     SaveImaged,
+    RemoveSmallObjects
 )
 from monai.utils import first
 
@@ -87,6 +88,8 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
     tumor_model.load_state_dict(torch.load(tumor_model_path, map_location=device))
     tumor_model.eval()
 
+    cleaner = RemoveSmallObjects(min_size=30)
+
     # 3. 定义最终的还原 (Invert) 逻辑
     # 我们只在最后一步把最终结果还原回原始空间
     # 因为我们预测出的 mask 是经过 Resize/Crop 后的，和原图对不上，这个工具能根据元数据，把 mask 变回原图的大小和方向
@@ -151,6 +154,8 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
                 
                 # 用肝脏 Mask 再次过滤，确保肿瘤一定在肝脏内（消除边缘误判），只有在肝脏范围内的才算肿瘤 (去除肝脏外的假阳性)
                 final_tumor_mask = final_tumor_mask * liver_mask
+
+                final_tumor_mask = cleaner(final_tumor_mask)      # 这一步会把那些只有几个像素的“假肿瘤”噪点删掉
 
             # 阶段五：合并结果(这里的策略取决于想要什么样的输出)
             # 策略 A: 0=背景, 1=肝脏, 2=肿瘤 (标准 LiTS 格式)
