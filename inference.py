@@ -32,22 +32,26 @@ def get_bbox(mask, margin=5):
     mask: Shape [C, D, H, W] or [D, H, W]
     margin: 在包围盒周围多留一点边界，防止切得太死
     """
+
+    # 1. 降维: 把 tensor 变成 numpy 数组，方便计算
     if isinstance(mask, torch.Tensor):    # 内置判断函数: isinstance(对象, 类型/类型元组)
         mask = mask.cpu().numpy()
 
-        # 找到所有值 > 0 (即肝脏) 的索引
-        # mask 可能是 [1, D, H, W]，我们取 [0] 变成 3D
+        # 2. 找到所有值 > 0 (即肝脏) 的索引
+        # mask 可能是 [1, D, H, W]，取 [0] 变成 3D。mask 的形状通常是 [1, Depth, Height, Width] (单通道3D图像)
+        # mask[0] 取出第0个通道，变成 [D, H, W]
+        # np.where 会返回所有“值大于0”(即肝脏像素) 的 (z, y, x) 坐标列表
         any_liver = np.where(mask[0] > 0)
 
     if len(any_liver[0]) == 0:
         return None    # 没找到肝脏
 
-    # 计算最小和最大坐标
+    # 3. 算边界: 比如 z 轴上，肝脏出现在第 50 层到 80 层，min就是50，max就是80
     z_min, z_max = np.min(any_liver[0]), np.max(any_liver[0])
     y_min, y_max = np.min(any_liver[1]), np.max(any_liver[1])
     x_min, x_max = np.min(any_liver[2]), np.max(any_liver[2])    
 
-    # 加上 margin，同时防止越界
+    # 加上 margin，同时防止越界。加一点余量防止切的时候把边界切坏了
     d, h, w = mask.shape[1:]
     z_min = max(0, z_min - margin)
     z_max = min(d, z_max + margin)
@@ -85,10 +89,11 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
 
     # 3. 定义最终的还原 (Invert) 逻辑
     # 我们只在最后一步把最终结果还原回原始空间
+    # 因为我们预测出的 mask 是经过 Resize/Crop 后的，和原图对不上，这个工具能根据元数据，把 mask 变回原图的大小和方向
     inverter = Invertd(
         keys="pred",
-        transform=transforms,
-        orig_keys="image",
+        transform=transforms, 
+        orig_keys="image",      # 参考原始图像的信息
         meta_keys="pred_meta_dict",
         orig_meta_keys="image_meta_dict",
         nearest_interp=False,
@@ -107,7 +112,7 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
     os.makedirs(output_dir, exist_ok=True)
 
     # 4. 级联循环
-    with torch.no_grad():       # 只要不是在 loss.backward()（反向传播）的时候，凡是预测、验证、测试，必须加这句.不需要反思“为什么错了”, 否则现存会爆炸
+    with torch.no_grad():       # 只要不是在 loss.backward()（反向传播）的时候，凡是预测、验证、测试，必须加这句.不需要反思“为什么错了”, 否则显存会爆炸
         for i, data in enumerate(loader):
             inputs = data["image"].to(device)    # 全图 CT
             filename = data["image_meta_dict"]["filename_or_obj"][0]
@@ -116,10 +121,11 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
             # 阶段一：全图预测肝脏
             # 使用滑动窗口，因为整图可能很大
             liver_logits = sliding_window_inference(inputs, config.PATCH_SIZE, 4, liver_model)
-            # 转为 0/1 Mask
+            # 转为 0/1 Mask  # argmax: 算出概率最大的类别 (0是背景, 1是肝脏)
             liver_mask = torch.argmax(liver_logits, dim=1, keepdim=True)
 
-            # 阶段二：根据肝脏 Mask 裁剪 (Crop)
+            # 阶段二：根据肝脏 Mask 裁剪 (Crop)，算盒子
+            # 先调用刚才的函数算出肝脏在哪
             bbox = get_bbox(liver_mask, margin=10)
             
             # 创建一个全黑的肿瘤 Mask，大小和原图一样
@@ -128,13 +134,14 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
             if bbox is None:
                 print(f"警告: 未检测到肝脏，跳过肿瘤检测。")
             else:
+                # 解包这6个坐标
                 z1, z2, y1, y2, x1, x2 = bbox
-                # 关键：只把肝脏区域切出来 (ROI)
+                # 只把肝脏区域（inputs 里对应的那个立方体块）切出来 (ROI)
                 liver_roi = inputs[:, :, z1:z2, y1:y2, x1:x2]
                 
                 print(f"肝脏区域 ROI 大小: {tuple(liver_roi.shape)}")
 
-                # 阶段三：在 ROI 里预测肿瘤
+                # 阶段三：在 ROI 里精细预测肿瘤
                 # 即使是切出来的 ROI，也可能比 patch_size 大，所以依然用 sliding_window
                 tumor_logits_roi = sliding_window_inference(liver_roi, config.PATCH_SIZE, 4, tumor_model)
                 tumor_mask_roi = torch.argmax(tumor_logits_roi, dim=1, keepdim=True)
@@ -142,14 +149,14 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
                 # 阶段四：把 ROI 的结果贴回大图 (Paste)
                 final_tumor_mask[:, :, z1:z2, y1:y2, x1:x2] = tumor_mask_roi
                 
-                # 可选：用肝脏 Mask 再次过滤，确保肿瘤一定在肝脏内（消除边缘误判）
+                # 用肝脏 Mask 再次过滤，确保肿瘤一定在肝脏内（消除边缘误判），只有在肝脏范围内的才算肿瘤 (去除肝脏外的假阳性)
                 final_tumor_mask = final_tumor_mask * liver_mask
 
             # 阶段五：合并结果(这里的策略取决于想要什么样的输出)
             # 策略 A: 0=背景, 1=肝脏, 2=肿瘤 (标准 LiTS 格式)
             # 目前的 liver_mask 里肝脏是 1，final_tumor_mask 里肿瘤是 1
-            combined_mask = liver_mask.clone()
-            combined_mask[final_tumor_mask == 1] = 2 # 把肿瘤的位置盖在肝脏上，赋值为 2
+            combined_mask = liver_mask.clone()     # 先复制一份肝脏
+            combined_mask[final_tumor_mask == 1] = 2 # 把肿瘤的位置盖在肝脏上，赋值为 2；这样结果就是: 0=背景, 1=肝脏, 2=肿瘤
             
             # 放入字典，准备 Invert
             data["pred"] = combined_mask

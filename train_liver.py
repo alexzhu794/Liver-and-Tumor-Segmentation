@@ -1,6 +1,7 @@
 import os
 import torch
 from tqdm import tqdm 
+from torch.utils.tensorboard import SummaryWriter
 
 from monai.utils import first, set_determinism
 from monai.handlers.utils import from_engine
@@ -10,6 +11,7 @@ from monai.inferers import sliding_window_inference
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch
 from monai.config import print_config
 from monai.apps import download_and_extract
+from monai.transforms import Compose, AsDiscrete
 import numpy as np
 import matplotlib.pyplot as plt
 import tempfile
@@ -32,7 +34,8 @@ def main():
     )
 
     # 2. 准备模型
-    model = get_net(device)
+    model = get_net()
+    model = model.to(device)
 
     # 3. 准备Loss和优化器
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -51,6 +54,8 @@ def main():
     post_label = Compose([AsDiscrete(to_onehot=2)])     # 真实标签：直接转成 One-Hot
 
     os.makedirs(config.MODEL_DIR, exist_ok=True)
+
+    writer = SummaryWriter(log_dir=os.path.join(config.LOG_DIR, stage))
 
     # 4. 训练循环
     for epoch in range(max_epochs):
@@ -75,7 +80,8 @@ def main():
             optimizer.step()
             epoch_loss += loss.item()
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
-            print(f"{step}/{len(train_ds) // train_loader.batch_size}, " f"train_loss: {loss.item():.4f}")
+            writer.add_scalar("Loss/train", loss.item(), epoch * len(train_loader) + step)
+            # print(f"{step}/{len(train_ds) // train_loader.batch_size}, " f"train_loss: {loss.item():.4f}")
         
         epoch_loss /= step
         epoch_loss_values.append(epoch_loss)
@@ -95,7 +101,7 @@ def main():
                         val_inputs, 
                         roi_size = config.PATCH_SIZE,
                         sw_batch_size = 1,    # 显存小的保险起见设为1，4090可以设4  
-                        model
+                        predictor = model
                     )
 
 
@@ -114,6 +120,7 @@ def main():
                 # 聚合结果
                 metric = dice_metric.aggregate().item()
                 dice_metric.reset()
+                writer.add_scalar("Dice/val", metric, epoch + 1)
                 print(f"Validation Dice: {metric:.4f}")
 
                 metric_values.append(metric)
@@ -128,6 +135,8 @@ def main():
                     f"\nbest mean dice: {best_metric:.4f} "
                     f"at epoch: {best_metric_epoch}"
                 )
+
+    writer.close()
 
 
 if __name__ == "__main__":

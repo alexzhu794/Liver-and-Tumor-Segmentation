@@ -11,6 +11,6 @@ def get_net():
         strides=(2, 2, 2, 2),    # 下采样步长（每次下采样缩小的倍数）。每次长宽高都缩小一半，一共缩小 2^4=16 倍
         num_res_units=2,         # 残差单元（每个层级里残差单元的数量）。防止网络太深梯度消失（ResNet的核心思想）
         norm=Norm.BATCH,         # 归一化。让训练更稳定，收敛更快（使用 Batch Normalization）
-    ).to(device)
+    )
 
     return model
