@@ -53,7 +53,7 @@ def evaluate(pred_dir, gt_dir, output_csv="evaluation_results.csv"):
             continue
 
     # 4. 读取数据
-    y_pred = loader(pred_path)
+    y_pred = loader(path)
     y_gt = loader(gt_path)
 
     # 确保都有通道维度 [C, D, H, W]
@@ -64,10 +64,14 @@ def evaluate(pred_dir, gt_dir, output_csv="evaluation_results.csv"):
     y_pred = y_pred.unsqueeze(0)     # 一个张量维度操作函数，核心作用是在指定位置插入一个长度为 1 的新维度，用于扩展张量的维度数
     y_gt = y_gt.unsqueeze(0)
 
+    print(y_pred_oh.shape)
+
     # 5. 格式转换
     # 此时 y_pred 和 y_gt 里面的值是 0, 1, 2，需要把它变成 One-Hot [1, 3, D, H, W] 才能同时算肝脏和肿瘤
     y_pred_oh = to_onehot(y_pred)
     y_gt_oh = to_onehot(y_gt)
+
+    print(y_pred_oh.shape)
 
     # 6. 计算指标
     dice_metric(y_pred=y_pred_oh, y=y_gt_oh)

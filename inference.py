@@ -80,11 +80,13 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
 
     # 2. 加载两个模型
     print("正在加载双模型...")
-    liver_model = get_net(device)
+    liver_model = get_net()
+    liver_model = liver_model.to(device)
     liver_model.load_state_dict(torch.load(liver_model_path, map_location=device))
     liver_model.eval()
 
-    tumor_model = get_net(device)
+    tumor_model = get_net()
+    tumor_model = liver_model.to(device)
     tumor_model.load_state_dict(torch.load(tumor_model_path, map_location=device))
     tumor_model.eval()
 
@@ -150,6 +152,10 @@ def run_inference(input_dir, output_dir, liver_model_path, tumor_model_path):
                 tumor_mask_roi = torch.argmax(tumor_logits_roi, dim=1, keepdim=True)
 
                 # 阶段四：把 ROI 的结果贴回大图 (Paste)
+                # 确保尺寸匹配，防止广播错误
+                roi_d, roi_h, roi_w = z2-z1, y2-y1, x2-x1
+                if tumor_mask_roi.shape[2:] != (roi_d, roi_h, roi_w):
+                    tumor_mask_roi = tumor_mask_roi[:, :, :roi_d, :roi_h, :roi_w]     # 简单裁剪或 Resize
                 final_tumor_mask[:, :, z1:z2, y1:y2, x1:x2] = tumor_mask_roi
                 
                 # 用肝脏 Mask 再次过滤，确保肿瘤一定在肝脏内（消除边缘误判），只有在肝脏范围内的才算肿瘤 (去除肝脏外的假阳性)
@@ -187,7 +193,7 @@ if __name__ == "__main__":
     liver_model_path = config.LIVER_MODEL
     tumor_model_path = config.TUMOR_MODEL
     
-    if os.path.exists(LIVER_MODEL) and os.path.exists(TUMOR_MODEL):
+    if os.path.exists(liver_model_path) and os.path.exists(tumor_model_path):
         run_inference(input_dir, output_dir, liver_model_path, tumor_model_path)
     else:
         print("请先训练好 liver 和 tumor 两个模型再运行此脚本！")

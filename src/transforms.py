@@ -121,7 +121,7 @@ def get_inference_trans(spatial_size=(96, 96, 32), intensity_range=(-175, 250)):
         EnsureChannelFirstd(keys=keys),
         Orientationd(keys=keys, axcodes="RAS"),
         # 注意：推理时也需要重采样，否则模型看不懂
-        Spacingd(keys=keys, pixdim=(1.0, 1.0, 2.0), mode="bilinear"), 
+        Spacingd(keys=keys, pixdim=(1.5, 1.5, 2.0), mode="bilinear"), 
         ScaleIntensityRanged(
             keys=keys, 
             a_min=intensity_range[0], 
